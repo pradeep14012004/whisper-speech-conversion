@@ -1,1 +1,2 @@
 nlp_project_results.tar.gz filter=lfs diff=lfs merge=lfs -text
+backup_parts/backup.part-* filter=lfs diff=lfs merge=lfs -text
