@@ -1,0 +1,10 @@
+data/
+outputs/
+checkpoints/
+logs/
+__pycache__/
+*.pyc
+*.pt
+*.pth
+*.tar.gz
+.env
