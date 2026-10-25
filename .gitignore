@@ -8,3 +8,12 @@ __pycache__/
 *.pth
 *.tar.gz
 .env
+
+# Dataset, extracted audio, and generated caches
+train/
+test/
+metadata/
+cache16k/
+downloads/
+data/
+outputs/
