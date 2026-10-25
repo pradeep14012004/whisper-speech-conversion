@@ -12,8 +12,8 @@ from av_fusion import AudioVisualFusion
 
 BASE = "openai/whisper-small"
 ADAPTER = "outputs/whisper_lora_small"
-MANIFEST = "outputs/training_manifest.csv"
-OUT = "outputs/av_fusion.pt"
+MANIFEST = "outputs/train_av_manifest.csv"
+OUT = "outputs/av_fusion_train_only.pt"
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 EPOCHS = 1
@@ -26,6 +26,14 @@ if not torch.cuda.is_available():
     raise RuntimeError("CUDA is unavailable. Check DGX GPU allocation.")
 
 df = pd.read_csv(MANIFEST)
+
+# Resolve video feature files from the training-only feature directory.
+df["feature"] = df["whisper_video"].map(
+    lambda p: os.path.join(
+        "outputs/train_video_features",
+        os.path.basename(str(p)) + ".npy"
+    )
+)
 
 required = [
     "whisper_audio", "normal_audio", "feature", "transcript"

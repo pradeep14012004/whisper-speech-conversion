@@ -17,3 +17,6 @@ cache16k/
 downloads/
 data/
 outputs/
+
+pretrained_AVSR/
+*.bak
