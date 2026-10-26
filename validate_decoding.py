@@ -1,72 +1,14 @@
+"""Compatibility launcher for scripts/evaluation/validate_decoding.py."""
+from pathlib import Path
 import os
-import numpy as np
-import pandas as pd
-import soundfile as sf
-import torch
-import jiwer
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
+import runpy
+import sys
 
-MANIFEST = "outputs/manifest_all_16k.csv"
-OUT = "outputs/evaluation/validation_decoding_comparison.csv"
-MODEL = "openai/whisper-large-v3"
-N = 64
+ROOT = Path(__file__).resolve().parent
+os.chdir(ROOT)
+sys.path.insert(0, str(ROOT))
 
-df = pd.read_csv(MANIFEST)
-df = df[(df["split"] == "valid") & df["usable_audio"]]
-df = df.head(N).reset_index(drop=True)
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-dtype = torch.float16 if device == "cuda" else torch.float32
-print(f"Device={device}; clips={len(df)}", flush=True)
-
-processor = WhisperProcessor.from_pretrained(MODEL)
-model = WhisperForConditionalGeneration.from_pretrained(
-    MODEL, torch_dtype=dtype, low_cpu_mem_usage=True
-).to(device)
-model.eval()
-
-rows = []
-for i, r in df.iterrows():
-    audio, sr = sf.read(r["whisper_16k"], dtype="float32")
-    if audio.ndim == 2:
-        audio = audio.mean(axis=1)
-    if sr != 16000:
-        raise ValueError(f"Expected 16kHz audio, got {sr}: {r['whisper_16k']}")
-
-    feats = processor(
-        audio, sampling_rate=16000, return_tensors="pt"
-    ).input_features.to(device, dtype=dtype)
-
-    with torch.inference_mode():
-        base_ids = model.generate(
-            feats, language="chinese", task="transcribe",
-            max_new_tokens=128, num_beams=1
-        )
-        repeat_ids = model.generate(
-            feats, language="chinese", task="transcribe",
-            max_new_tokens=128, num_beams=1,
-            no_repeat_ngram_size=3
-        )
-
-    base = processor.batch_decode(base_ids, skip_special_tokens=True)[0]
-    repeat = processor.batch_decode(repeat_ids, skip_special_tokens=True)[0]
-    rows.append({
-        "audio": r["whisper_16k"],
-        "reference": str(r["transcript"]),
-        "greedy": base,
-        "no_repeat_3gram": repeat,
-    })
-
-    if (i + 1) % 8 == 0 or i + 1 == len(df):
-        pd.DataFrame(rows).to_csv(OUT, index=False)
-        print(f"{i+1}/{len(df)} clips", flush=True)
-
-def norm(s):
-    return "".join(c for c in str(s) if c.isalnum())
-
-for col in ["greedy", "no_repeat_3gram"]:
-    refs = [norm(x) for x in pd.DataFrame(rows)["reference"]]
-    hyps = [norm(x) for x in pd.DataFrame(rows)[col]]
-    print(f"{col} CER: {100 * jiwer.cer(refs, hyps):.3f}%", flush=True)
-
-print("Saved:", OUT, flush=True)
+runpy.run_path(
+    str(ROOT / "scripts" / "evaluation" / "validate_decoding.py"),
+    run_name="__main__",
+)
