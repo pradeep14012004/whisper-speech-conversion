@@ -1,14 +1,18 @@
 flowchart TD
-    A["Whispered Chinese audio"] --> C["Audio preparation: mono / 16 kHz"]
-    B["Matching video"] --> D["Sample 16 grayscale frames (48×48)"]
-    C --> E["Whisper-small + LoRA audio encoder"]
-    D --> F["AVResidualAdapter visual/audio fusion"]
-    E --> F
-    F --> G["Chinese transcription"]
-    G --> H["NLLB: Chinese → English"]
-    H --> I["Edge TTS: English speech"]
-    I --> J["Streamlit results: transcript, translation, audio"]
-    G --> J
-    H --> J
-
-    X["Archived noisy conversion / HiFi-GAN experiments"] -. "inactive; not called by app.py" .-> Z["archive/conversion_experiments/"]
+    A["Whispered Chinese audio upload"] --> C["Decode, mono mix, resample to 16 kHz"]
+    B["Matching video upload"] --> D["Sample 16 frames over video"]
+    D --> E["Grayscale + resize to 48×48"]
+    C --> F["Whisper-small encoder + LoRA"]
+    F --> G["Audio hidden states, 768-D"]
+    E --> H["CNN frame encoder, 128-D"]
+    G --> I["AVResidualAdapter: 256-D fusion; 4-head cross-attention"]
+    H --> I
+    I --> J["Whisper decoder → Chinese transcript"]
+    J --> K["NLLB-200 distilled 600M: Chinese → English"]
+    K --> L["English translation"]
+    L --> M["Edge TTS: en-US-AriaNeural"]
+    M --> N["English MP3"]
+    J --> O["Streamlit displays transcript, translation, audio"]
+    L --> O
+    N --> O
+    X["Archived acoustic / mel / HiFi-GAN experiments"] -. "inactive; not used by app.py" .-> Y["archive/conversion_experiments/"]
