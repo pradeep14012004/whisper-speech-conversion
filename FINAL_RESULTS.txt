@@ -1,0 +1,35 @@
+Mandarin Whisper AV Fusion — Final Results
+==========================================
+
+Best checkpoint:
+outputs/av_transcription_pilot.pt
+
+Validation (2,239 clips):
+Audio-only corpus CER: 34.3943%
+AV corpus CER:         28.1161%
+Absolute reduction:     6.2782 percentage points
+Relative reduction:    18.25%
+
+Per-utterance validation comparison:
+AV improves: 1,147 (51.2%)
+AV worsens:    556 (24.8%)
+Unchanged:     536 (23.9%)
+
+Official test matched subset (2,274 clips):
+Audio-only CER: 40.6707%
+AV CER:         35.5825%
+Absolute reduction: 5.0883 percentage points
+Relative reduction: approximately 12.51%
+Feature coverage: 2,274 / 3,289 (69.14%)
+
+Comparison experiments:
+Low-LR AV validation CER: 33.2322%
+Expanded-training AV validation CER: 37.9886%
+Selected model: original AV pilot checkpoint
+
+Limitations:
+- Official test AV metrics cover only the matched subset with available
+  visual features, not all official test examples.
+- Video-feature coverage is incomplete and may introduce selection bias.
+- Validation improvements do not guarantee generalization to unseen speakers.
+- Preserve the original audio-only baselines and pilot checkpoint.
