@@ -1,35 +1,111 @@
-Mandarin Whisper AV Fusion — Final Results
-==========================================
+EVALUATION RESULTS AND MODEL STATUS
+===================================
 
-Best checkpoint:
-outputs/av_transcription_pilot.pt
+Important checkpoint distinction
+--------------------------------
+The current Streamlit app (app.py) loads:
+  outputs/whisper_lora_small/
+  outputs/av_transcription_full.pt
 
-Validation (2,239 clips):
-Audio-only corpus CER: 34.3943%
-AV corpus CER:         28.1161%
-Absolute reduction:     6.2782 percentage points
-Relative reduction:    18.25%
+The historical AV pilot metrics below were reported for:
+  outputs/av_transcription_pilot.pt
+
+That pilot checkpoint is not currently committed and is not the AV checkpoint
+loaded by the app. Do not attribute its scores to av_transcription_full.pt.
+
+A. Historical AV pilot experiment (as recorded in the original result report)
+------------------------------------------------------------------------------
+
+Validation, 2,239 clips:
+  Audio-only corpus CER:                 34.3943%
+  AV corpus CER:                         28.1161%
+  Absolute CER reduction:                 6.2782 percentage points
+  Relative CER reduction:                18.25%
 
 Per-utterance validation comparison:
-AV improves: 1,147 (51.2%)
-AV worsens:    556 (24.8%)
-Unchanged:     536 (23.9%)
+  AV improves:                           1,147 (51.2%)
+  AV worsens:                              556 (24.8%)
+  Unchanged:                               536 (23.9%)
 
-Official test matched subset (2,274 clips):
-Audio-only CER: 40.6707%
-AV CER:         35.5825%
-Absolute reduction: 5.0883 percentage points
-Relative reduction: approximately 12.51%
-Feature coverage: 2,274 / 3,289 (69.14%)
+Official test, matched audio/video subset only:
+  Audio-only CER:                        40.6707%
+  AV CER:                                35.5825%
+  Absolute CER reduction:                 5.0882 percentage points
+  Relative CER reduction:                approximately 12.51%
+  Matched visual features:               2,274 / 3,289 clips (69.14%)
 
-Comparison experiments:
-Low-LR AV validation CER: 33.2322%
-Expanded-training AV validation CER: 37.9886%
-Selected model: original AV pilot checkpoint
+Other AV pilot comparisons:
+  Low-learning-rate AV validation CER:   33.2322%
+  Expanded-training AV validation CER:   37.9886%
+  Selected historical pilot:             original AV pilot checkpoint
 
-Limitations:
-- Official test AV metrics cover only the matched subset with available
-  visual features, not all official test examples.
-- Video-feature coverage is incomplete and may introduce selection bias.
-- Validation improvements do not guarantee generalization to unseen speakers.
-- Preserve the original audio-only baselines and pilot checkpoint.
+The official-test AV score excludes unmatched examples. Incomplete visual
+feature coverage can introduce selection bias. Validation scores may not
+generalize to new speakers.
+
+B. Official-test ASR prediction CSVs (recomputed)
+-------------------------------------------------
+Three committed prediction files each contain the same 3,289 official-test
+clips. Scores below were recomputed from the CSV predictions with this
+normalization:
+  1. Unicode NFKC normalization;
+  2. lowercase;
+  3. keep Unicode letters and numbers only;
+  4. corpus CER = summed Levenshtein character edits / total reference chars;
+  5. normalized exact match = prediction equals normalized reference.
+
+All three files have 65,134 normalized reference characters. This normalization
+is intentionally documented because the legacy score_test.py optionally uses
+OpenCC Traditional-to-Simplified conversion and can return different values.
+
+Model / prediction artifact                        CER      Exact matches
+----------------------------------------------------------------------------
+Whisper-small base                                  42.27%   81 / 3,289 (2.46%)
+  outputs/evaluation/official_test_small_predictions.csv
+
+Whisper-small + project LoRA                         40.45%   92 / 3,289 (2.80%)
+  outputs/evaluation/official_test_lora_predictions.csv
+
+Whisper-large-v3 base comparison                     18.81%  798 / 3,289 (24.26%)
+  outputs/evaluation/official_test_large_v3_predictions.csv
+
+Extra observations using the same normalizer:
+  Empty predictions: 0 for all three models.
+  Per-speaker corpus CER ranges across the 28 speakers:
+    Whisper-small:      minimum 28.80%; median 39.24%; maximum 80.34%
+    Small + LoRA:       minimum 27.57%; median 38.93%; maximum 70.07%
+    Whisper-large-v3:   minimum  5.60%; median 17.02%; maximum 46.64%
+
+Lower CER is better. The large-v3 run is an offline comparison, not the model
+used by the Streamlit app. CER results for these files do not measure NLLB
+translation quality or Edge TTS speech quality.
+
+C. Other metrics and evaluation scripts
+---------------------------------------
+Metrics implemented by evaluation scripts include:
+  - Corpus character error rate (CER) for Chinese transcription.
+  - Word error rate (WER) in the Whisper base-versus-LoRA comparison script.
+  - Per-utterance CER / whether AV improves, worsens, or ties audio-only output.
+  - Per-speaker corpus CER, empty outputs, and exact matches in scoring utilities.
+  - Beam-search versus greedy-decoding CER on a small validation subset.
+
+The repository does not currently include a saved numeric WER result, a committed
+beam-search results CSV/summary, or a completed score report for
+outputs/av_transcription_full.pt. Do not invent those values; rerun the relevant
+script in the environment containing the matching data and manifests.
+
+There are no committed BLEU/COMET/chrF translation scores, MOS/listener study,
+objective generated-speech quality scores, or successful end-to-end app benchmark.
+Translation and TTS are part of the app flow but are not quantitatively evaluated
+in the committed artifacts.
+
+D. Reproducible scorer
+----------------------
+From the repository root, after confirming the prediction CSVs exist:
+  python scripts/evaluation/score_official_predictions.py
+
+The scorer uses the normalization stated in section B. For comparison, the older
+score_test.py uses optional OpenCC conversion:
+  python score_test.py
+
+Those two scoring methods should not be mixed in one comparison table.
