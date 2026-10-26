@@ -1,27 +1,14 @@
 flowchart TD
-    A["Whispered Chinese audio"]
-    B["Synchronized video"]
-    C["Whisper-small + LoRA"]
-    D["Precomputed video features"]
-    E["Cross-attention audio-video fusion"]
-    F["Mel decoder"]
-    G["HiFi-GAN vocoder"]
-    H["Converted Chinese speech"]
-    I["Chinese ASR"]
-    J["Chinese-to-English translation"]
-    K["English TTS"]
-    L["Classroom demonstration"]
-
-    A --> C
-    B --> D
-    C --> E
-    D --> E
+    A["Whispered Chinese audio"] --> C["Audio preparation: mono / 16 kHz"]
+    B["Matching video"] --> D["Sample 16 grayscale frames (48×48)"]
+    C --> E["Whisper-small + LoRA audio encoder"]
+    D --> F["AVResidualAdapter visual/audio fusion"]
     E --> F
-    F --> G
-    G --> H
-    H --> I
-    I --> J
-    J --> K
-    H --> L
-    J --> L
-    K --> L
+    F --> G["Chinese transcription"]
+    G --> H["NLLB: Chinese → English"]
+    H --> I["Edge TTS: English speech"]
+    I --> J["Streamlit results: transcript, translation, audio"]
+    G --> J
+    H --> J
+
+    X["Archived noisy conversion / HiFi-GAN experiments"] -. "inactive; not called by app.py" .-> Z["archive/conversion_experiments/"]

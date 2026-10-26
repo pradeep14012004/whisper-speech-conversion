@@ -1,49 +1,60 @@
-# Whispered Chinese Speech Project Architecture
+# Project Architecture
 
-## Current demo pipeline
+## Active demo: audio/video → Chinese text → English speech
 
-Chinese transcript
-    |
-    v
-Pretrained Chinese neural TTS (Edge TTS)
-    |
-    v
-outputs/chinese_tts.mp3
-    |
-    v
-Audio playback and evaluation
-    |
-    v
-Optional Chinese ASR -> English translation -> English TTS
+The active entry point is `app.py`. The intended runtime sequence is:
 
-## Speech-generation decision
+```text
+Whispered Chinese audio + matching video
+                    |
+                    v
+         Audio preparation (mono, 16 kHz)
+                    |
+                    +--------------------------+
+                    |                          |
+                    v                          v
+          Whisper-small + LoRA         Sample video frames
+                    |                  (16 grayscale 48x48)
+                    |                          |
+                    +------------+-------------+
+                                 v
+                    AVResidualAdapter fusion
+                                 |
+                                 v
+                     Chinese transcription
+                                 |
+                                 v
+                    NLLB Chinese → English
+                                 |
+                                 v
+                      Edge TTS English audio
+                                 |
+                                 v
+                Streamlit transcript/translation/
+                         playable audio output
+```
 
-The AV-to-mel model currently produces noisy audio when its
-predicted mel-spectrogram is passed to HiFi-GAN.
+## Active model assets
 
-For the demo speech-generation path, use pretrained Chinese TTS
-directly from the Chinese transcript. Do not use the noisy AV
-mel prediction as the demo audio source.
+- Whisper LoRA adapter: `outputs/whisper_lora_small/`
+- AV transcription adapter: `outputs/av_transcription_full.pt`
+- NLLB translation model: `facebook/nllb-200-distilled-600M`
+- Edge TTS: remote speech synthesis service
 
-## Existing AV model
+## Inactive speech-conversion experiments
 
-Keep the AV model, video features, LoRA adapter, training scripts,
-and checkpoints for further research and debugging.
+The older whisper-to-normal-speech approach (AV-to-mel prediction and HiFi-GAN vocoding) produced noisy audio and is **not part of the active demo**. Related scripts are kept under `archive/conversion_experiments/` for reference only. Do not call those scripts from the Streamlit app.
 
-The TTS fallback is transcript-driven speech synthesis. It is not
-whisper-to-normal speech conversion and does not demonstrate
-preservation of the original speaker's voice.
+The active app generates English speech from the translated English text. This is text-driven TTS, not normal-sounding Chinese speech conversion and not voice preservation.
 
-## Optional English output
+## Run
 
-If a Chinese transcript is already available:
-    Chinese transcript -> English translation -> English TTS
+```bash
+python -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
+```
 
-If only audio is available:
-    Chinese audio -> Chinese ASR -> English translation -> English TTS
+A hosting-provider port-forward/proxy may be required to open the interface from a local browser. `http://0.0.0.0:8501` is the server bind address, not necessarily the public URL.
 
-## Run the Chinese TTS demo
+## Verification
 
-    ./run_chinese_tts.sh
-
-The script requires internet access and a working Edge TTS service.
+Syntax and required checkpoint existence have been checked. End-to-end runtime behavior remains unverified until a real matching audio/video pair successfully produces Chinese text, English translation, and playable English audio.

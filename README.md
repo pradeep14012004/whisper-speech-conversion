@@ -1,52 +1,54 @@
-# Audio-Visual Whispered Chinese Speech Conversion
+# Audio-Visual Chinese Transcription → English Speech
 
-## Project overview
+This repository's **active demo pipeline** takes whispered Chinese audio and a matching video, predicts Chinese text, translates that text into English, and generates English speech. It does **not** use the noisy Chinese speech-reconstruction / HiFi-GAN experiment in the active app.
 
-This project aims to convert whispered Chinese speech into normal-sounding
-Chinese speech using audio-visual features, then recognize the converted
-Chinese speech, translate it into English, and synthesize English speech.
+## Active pipeline
 
-## Architecture
+1. **Inputs** — upload whispered Chinese audio and the matching video in Streamlit.
+2. **Audio preparation** — load the audio, convert it to mono, and resample to 16 kHz when needed.
+3. **Video preparation** — sample 16 frames, convert them to grayscale, and resize to 48 × 48.
+4. **Audio-visual Chinese transcription** — Whisper-small + LoRA encodes the audio; the trained AV adapter fuses the video-frame features with the audio representations and predicts Chinese text.
+5. **Chinese → English translation** — NLLB-200 translates the recognized Chinese text to English.
+6. **English speech generation** — Edge TTS generates spoken English.
+7. **Results** — Streamlit displays the Chinese transcript, English translation, and generated English audio.
 
-1. Input: whispered Chinese audio and synchronized video.
-2. Audio features: Whisper-small with LoRA adapter.
-3. Visual features: precomputed video-frame features.
-4. Fusion: cross-attention combines audio and visual representations.
-5. Speech generation: mel decoder and HiFi-GAN vocoder.
-6. Chinese ASR: recognize the converted Chinese speech.
-7. Machine translation: translate Chinese text into English.
-8. English TTS: synthesize English speech.
-9. Demo interface: display results and play generated audio.
+## Entry point and required model files
 
-## Current implementation status
+- **App entry point:** `app.py`
+- Whisper LoRA adapter: `outputs/whisper_lora_small/`
+- Audio-visual transcription adapter checkpoint: `outputs/av_transcription_full.pt`
+- Translation model: `facebook/nllb-200-distilled-600M` (downloaded by Transformers as needed)
+- English TTS: Edge TTS (requires network access to the service)
 
-The project contains an existing acoustic conversion model and an
-audio-visual-to-mel training pipeline. The full inference pipeline must
-be tested before claiming that every stage works end to end.
+The model checkpoint files may be kept on the server and may be excluded from GitHub by `.gitignore`. Confirm they are present in your runtime before launching the app.
 
-## Requirements
+## Run the app
 
-Python and compatible versions of PyTorch, Transformers, PEFT,
-SpeechBrain, NumPy, pandas, SciPy, SoundFile, and other dependencies
-used by the project.
+From the repository root, in the server environment with dependencies installed:
 
-Install dependencies using the project's verified requirements file
-once it has been prepared.
+```bash
+python -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
+```
 
-## Model files
+Open the app using your hosting provider's exposed/forwarded port URL. `0.0.0.0:8501` is a bind address, not normally the public browser URL.
 
-Model checkpoints and datasets may be too large for ordinary GitHub
-uploads. Store large files using Git LFS or an approved external model
-storage location. Do not commit private data, credentials, or tokens.
+## Repository guide
 
-## Classroom demonstration
+- `app.py` — active Streamlit application and inference pipeline.
+- `outputs/` — local model checkpoints and evaluation artifacts; some are intentionally not tracked by Git.
+- `docs/architecture.mmd` and `ARCHITECTURE.md` — current pipeline diagram and explanation.
+- `train_av_transcription*.py`, `train_whisper_lora.py`, `train_av_fusion.py`, `evaluate_*.py` — model training and evaluation scripts; run only when intentionally training/evaluating.
+- `build_*.py`, `extract_*video*.py` — data-manifest and video-feature preparation utilities.
+- `archive/conversion_experiments/` — inactive acoustic-conversion / mel / HiFi-GAN experiments retained for reference; not part of the active demo.
+- `backup_parts/` — legacy backup fragments; not part of runtime.
 
-The intended demonstration accepts whispered Chinese audio and video,
-generates converted Chinese speech, and then displays English translation
-and English speech when those pipeline stages have been integrated
-and tested.
+## Verification status
 
-## Reproducibility
+The app syntax and required checkpoint presence have been checked in the server environment. A real audio/video inference run is still required to confirm the complete runtime path (Chinese transcription → English translation → playable English speech). Do not claim end-to-end success until that test passes.
 
-Record the Python and library versions, model checkpoint locations,
-input sample details, and validation results before presenting results.
+## Notes
+
+- Video input must correspond to the whispered audio.
+- The current visual preprocessing uses whole grayscale frames, not a dedicated mouth crop.
+- Audio-visual fusion is not guaranteed to improve transcription accuracy; evaluate against an audio-only baseline.
+- The active pipeline generates English speech from translated text. It does not preserve the original speaker's voice and does not convert whispered Chinese audio into normal-sounding Chinese speech.
