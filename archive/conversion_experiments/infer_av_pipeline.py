@@ -135,7 +135,7 @@ def main():
         run_opts={"device": device},
     )
 
-    vocoder_input = torch.from_numpy(mel.T.copy()).unsqueeze(0).to(device)
+    vocoder_input = torch.from_numpy(mel.copy()).unsqueeze(0).to(device)
     print("HiFi-GAN input shape:", tuple(vocoder_input.shape))
 
     with torch.no_grad():
