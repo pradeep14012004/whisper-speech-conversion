@@ -1,0 +1,27 @@
+flowchart TD
+    A["Whispered Chinese audio"]
+    B["Synchronized video"]
+    C["Whisper-small + LoRA"]
+    D["Precomputed video features"]
+    E["Cross-attention audio-video fusion"]
+    F["Mel decoder"]
+    G["HiFi-GAN vocoder"]
+    H["Converted Chinese speech"]
+    I["Chinese ASR"]
+    J["Chinese-to-English translation"]
+    K["English TTS"]
+    L["Classroom demonstration"]
+
+    A --> C
+    B --> D
+    C --> E
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    J --> K
+    H --> L
+    J --> L
+    K --> L

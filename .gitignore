@@ -1,22 +1,74 @@
-data/
-outputs/
-checkpoints/
-logs/
+# Python
 __pycache__/
-*.pyc
-*.pt
-*.pth
-*.tar.gz
+*.py[cod]
+.venv/
+venv/
 .env
 
-# Dataset, extracted audio, and generated caches
-train/
-test/
-metadata/
-cache16k/
-downloads/
+# Datasets and generated outputs
+outputs/*
+!outputs/README.md
+
+# Pretrained model weights and caches
+pretrained_models/
+.cache/
+huggingface_cache/
+
+# Temporary and backup files
+*.cuda-backup
+*.tmp
+*.log
+
+# Secrets
+*.key
+*.pem
+credentials.json
+
+# Local datasets, caches and checkpoints
 data/
+cache16k/
+checkpoints/
+downloads/
+logs/
+metadata/
+test/
+train/
+
+# Local model repositories and weights
+pretrained_AVSR/
+pretrained_models/
 outputs/
 
-pretrained_AVSR/
+# Backup scripts and temporary files
 *.bak
+*.backup
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Datasets, model outputs and local checkpoints
+outputs/
+data/
+cache16k/
+checkpoints/
+downloads/
+logs/
+metadata/
+test/
+train/
+pretrained_AVSR/
+pretrained_models/
+
+# Backups and temporary files
+*.bak
+*.backup
+*.cuda-backup
+*.tmp
+
+# Secrets
+*.key
+*.pem
+credentials.json
