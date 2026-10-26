@@ -1,8 +1,8 @@
 # Runtime and evaluation dependencies
 # Install a CPU/CUDA-appropriate PyTorch build separately:
 # https://pytorch.org/get-started/locally/
-# These package ranges are intentionally broad; for exact server reproduction,
-# record and use a tested lock file for your Python and CUDA environment.
+# For exact server reproduction, use a tested lock file matched to your
+# Python and CUDA environment; this file is a minimal, unpinned base.
 
 accelerate>=0.27
 edge-tts
@@ -10,11 +10,11 @@ editdistance
 jiwer
 librosa>=0.10
 numpy<2
-opencv-python-headless
+opencv-python-headless>=4.8,<4.12
 opencc-python-reimplemented
 pandas
-peft>=0.10
+peft>=0.10,<1
 scipy
 soundfile
 streamlit
-transformers>=4.40
+transformers>=4.40,<5
