@@ -1,87 +1,97 @@
-# Repository File Structure
+# Project Structure
 
-This file explains where each part of the project belongs and which files are safe to move. The live app and training scripts currently use paths relative to the repository root, so keep the repository root as the working directory when running scripts.
+This guide describes where project components live, which files are active, and which folders contain experiments. Run commands from the repository root unless the script explicitly documents otherwise.
 
-## Active entry point (keep at root)
+## Root files
 
-- `app.py` — Streamlit application. Keep this at the root because it locates model files relative to its own directory.
-- `outputs/whisper_lora_small/` — local Whisper LoRA files required by the app (may be ignored by Git).
-- `outputs/av_transcription_full.pt` — local AV adapter checkpoint required by the app (may be ignored by Git).
-- `outputs/evaluation/` — saved evaluation logs and predictions.
-- `README.md`, `ARCHITECTURE.md` — project overview and current architecture.
+| Path | Purpose |
+|---|---|
+| `app.py` | Streamlit entry point and active inference pipeline |
+| `av_fusion.py` | Audio-visual adapter/model components |
+| `project_paths.py` | Shared path helpers |
+| `README.md` | Setup and quick overview |
+| `ARCHITECTURE.md` | Active pipeline explanation |
+| `FINAL_RESULTS.txt` | Recorded project results |
+| `*.py` launchers | Compatibility wrappers for scripts organized under `scripts/` |
 
-## Documentation
+## Organized scripts
 
-- `docs/architecture.mmd` — Mermaid diagram of the active pipeline.
-- `examples/README.md` — example usage notes.
+### `scripts/data_preparation/`
 
-## Data preparation and feature extraction
-
-These scripts prepare manifests, paired data, caches, or video features. They currently refer to paths such as `outputs/...` relative to the repository root:
-
-- `build_manifest.py`
-- `build_manifest_all.py`
+Manifest building, paired-data preparation, and video feature extraction:
 - `build_av_manifest.py`
-- `build_conversion_manifest.py`
+- `build_manifest.py`, `build_manifest_all.py`, `build_training_manifest.py`
 - `build_pairs.py`
-- `build_training_manifest.py`
-- `prepare_training.py`
-- `make_cache16k.py`
-- `extract_video_features.py`
-- `extract_train_video_features.py`
-- `extract_test_video_features.py`
+- `extract_video_features.py`, `extract_train_video_features.py`, `extract_test_video_features.py`
 
-## Training
+### `scripts/training/`
 
-Training scripts are kept at the root for now because they refer to root-relative paths and may share local modules:
-
+Model training code:
 - `train_whisper_lora.py`
 - `train_lora_large_v3.py`
 - `train_baseline.py`
-- `train_av_transcription.py`
-- `train_av_transcription_full.py`
-- `train_av_transcription_lowlr.py`
-- `train_av_fusion.py`
-- `train_av_to_mel.py`
+- `train_av_transcription.py`, `train_av_transcription_full.py`, `train_av_transcription_lowlr.py`
 
-## Evaluation and diagnostics
+### `scripts/evaluation/`
 
-- `evaluate_*.py`
-- `eval_*.py`
-- `compare_*.py`
-- `score_test.py`
-- `rescore.py`, `rescore3.py`
-- `smoke_test_av.py`, `test_adapter.py`, `test_av_decode.py`
-- `validate_beam_search.py`, `validate_decoding.py`, `validate_conversion.py`
+Evaluation, rescoring, official-test runs, and decoding validation. Files are grouped here by evaluation purpose; they are not necessarily part of the app's runtime.
 
-## Translation and speech utilities
+### `scripts/translation/`
 
 - `translate_one.py`
 - `translate_to_english.py`
-- `english_tts.py`
-- `english_tts_one.py`
-- `run_chinese_tts.sh`
-- `run_demo_pipeline.sh`
-- `run_full_demo.sh`
 
-## Archived conversion experiments
+## Model outputs
 
-- `archive/conversion_experiments/` — inactive mel / HiFi-GAN / acoustic-conversion experiments. These are not part of the active Streamlit pipeline.
-- The active app should remain: audio + video → Chinese text → English translation → English TTS.
+- `outputs/whisper_lora_small/` — trained Whisper LoRA adapter and tokenizer metadata.
+- `outputs/av_transcription_full.pt` — trained audio-visual transcription adapter checkpoint.
+- `outputs/evaluation/` — saved evaluation logs and prediction files.
 
-## Legacy / large files
+Keep large datasets, caches, generated audio, and other machine-specific artifacts out of source control unless they are deliberately needed and safe to publish.
 
-- `backup_parts/` — legacy backup fragments.
-- `new-workspace.ipynb` — notebook.
-- `nlp_project_results.tar.gz` — archive; consider storing large archives outside Git if they are not needed for source control.
+## Archived and legacy material
 
-## Important path rule
+- `archive/conversion_experiments/` — inactive mel/acoustic-conversion/HiFi-GAN experiments. These are not part of the intended active app pipeline.
+- `backup_parts/` — legacy backup fragments; not used by the app.
+- `new-workspace.ipynb` — exploratory notebook.
+- `nlp_project_results.tar.gz` — bundled archive; retain only if needed for reproducibility.
 
-Until scripts are converted to use a shared project-root helper, run them from the repository root, for example:
+## Intended active app flow
+
+```text
+Whispered Chinese audio + matching video
+                 |
+                 v
+Audio/video preprocessing
+                 |
+                 v
+Whisper-small + LoRA + AV adapter
+                 |
+                 v
+           Chinese text
+                 |
+                 v
+           NLLB translation
+                 |
+                 v
+           English text
+                 |
+                 v
+              Edge TTS
+                 |
+                 v
+            English audio
+```
+
+The intended active path bypasses archived acoustic-conversion experiments. The complete path still needs a real audio/video inference test to verify runtime behavior.
+
+## Path and execution rule
+
+Run from the repo root so existing relative paths resolve as expected:
 
 ```bash
 cd /home/jovyan/whisper_speech_conversion
-python train_av_transcription_full.py
+python -m streamlit run app.py --server.address 0.0.0.0 --server.port 8501 --server.headless true
 ```
 
-Do not move scripts into subfolders without updating their path handling and testing their imports. The current organization is documented by role to avoid silently breaking relative paths.
+The organized scripts may be invoked through root-level compatibility launchers to preserve older commands. Do not delete those launchers unless every reference and workflow has been updated and tested.
