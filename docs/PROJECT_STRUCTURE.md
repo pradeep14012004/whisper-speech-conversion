@@ -13,6 +13,7 @@ Use the repository root as the working directory for existing commands. Root-lev
 | `ARCHITECTURE.md` | Active pipeline explanation |
 | `FINAL_RESULTS.txt` | Recorded project results |
 | `outputs_README_NOTE.md` | Notes about model/output artifacts |
+| `requirements.txt` | Base runtime/evaluation dependencies; PyTorch is installed separately for the chosen CPU/CUDA environment |
 | root-level `.py` launchers | Backward-compatible command names that delegate into `scripts/`; archived conversion entry points now show a safe warning |
 
 ## Organized scripts
@@ -37,6 +38,8 @@ Model training implementations:
 
 Evaluation, official-test runs, rescoring, comparisons, smoke tests, adapter checks, and decoding validation. These scripts are primarily for development/evaluation, not part of normal app inference.
 
+- `score_official_predictions.py` — recompute CER, exact-match rate, empty-output counts, and per-speaker CER from the three tracked official-test ASR prediction CSVs.
+
 ### `scripts/translation/`
 
 - `translate_one.py`
@@ -46,6 +49,11 @@ Evaluation, official-test runs, rescoring, comparisons, smoke tests, adapter che
 
 - `english_tts.py` — generate English speech for a translation CSV.
 - `english_tts_one.py` — generate a single English speech output.
+
+## Results and metrics
+
+- `docs/EVALUATION_RESULTS.md` — detailed metric definitions, recomputed official-test ASR results, historical AV pilot metrics, and evaluation limitations.
+- `FINAL_RESULTS.txt` — text summary, including historical pilot-checkpoint results and the important checkpoint caveat.
 
 ## Model outputs
 
