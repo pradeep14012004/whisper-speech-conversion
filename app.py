@@ -1,6 +1,6 @@
-
-import asyncio
+﻿import asyncio
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -201,6 +201,9 @@ async def generate_speech(text, output_path):
     await tts.save(str(output_path))
 
 
+# ==========================================
+# UI Layout & Session State
+# ==========================================
 st.set_page_config(
     page_title="Audio-Visual Speech Pipeline",
     layout="wide",
@@ -213,14 +216,24 @@ st.write(
 )
 st.caption("No Chinese speech-conversion stage is used.")
 
-audio_upload = st.file_uploader(
-    "Upload whispered audio",
-    type=["wav", "mp3", "flac", "ogg", "m4a"],
-)
-video_upload = st.file_uploader(
-    "Upload matching video",
-    type=["avi", "mp4", "mov", "mkv", "webm"],
-)
+# Initialize session state for persistent outputs and history log
+if "current_output" not in st.session_state:
+    st.session_state["current_output"] = None
+
+if "history_log" not in st.session_state:
+    st.session_state["history_log"] = []
+
+col_audio, col_video = st.columns(2)
+with col_audio:
+    audio_upload = st.file_uploader(
+        "Upload whispered audio",
+        type=["wav", "mp3", "flac", "ogg", "m4a"],
+    )
+with col_video:
+    video_upload = st.file_uploader(
+        "Upload matching video",
+        type=["avi", "mp4", "mov", "mkv", "webm"],
+    )
 
 if st.button(
     "Run complete pipeline",
@@ -247,33 +260,127 @@ if st.button(
                 st.error("The model returned no Chinese text.")
                 st.stop()
 
-            st.subheader("Predicted Chinese text")
-            st.write(chinese)
-            st.caption(f"OpenCV extracted {frame_count} frames.")
-
             with st.spinner("Step 2/3: Translating into English..."):
                 english = translate_english(chinese)
             if not english:
                 st.error("Translation returned empty text.")
                 st.stop()
 
-            st.subheader("English translation")
-            st.write(english)
-
             speech_path = tmp / "english_speech.mp3"
             with st.spinner("Step 3/3: Generating English speech..."):
                 asyncio.run(generate_speech(english, speech_path))
 
-            speech = speech_path.read_bytes()
-            st.subheader("English speech")
-            st.audio(speech, format="audio/mpeg")
-            st.download_button(
-                "Download English audio",
-                data=speech,
-                file_name="english_speech.mp3",
-                mime="audio/mpeg",
-            )
-            st.success("All pipeline stages completed.")
+            speech_bytes = speech_path.read_bytes()
+
+            result_entry = {
+                "id": len(st.session_state["history_log"]) + 1,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "audio_name": audio_upload.name,
+                "video_name": video_upload.name,
+                "chinese": chinese,
+                "frame_count": frame_count,
+                "english": english,
+                "speech_bytes": speech_bytes,
+            }
+
+            st.session_state["current_output"] = result_entry
+            st.session_state["history_log"].append(result_entry)
+            st.rerun()
+
         except Exception as exc:
             st.error(f"Pipeline failed: {type(exc).__name__}: {exc}")
             st.exception(exc)
+
+
+# ==========================================
+# Current Output Display (Persisted in Session)
+# ==========================================
+current = st.session_state.get("current_output")
+if current:
+    st.divider()
+    col_out_title, col_clear = st.columns([5, 1])
+    with col_out_title:
+        st.subheader(f"Pipeline Output — Run #{current['id']}")
+        st.caption(
+            f"Generated at {current['timestamp']} | Audio: `{current['audio_name']}` | Video: `{current['video_name']}`"
+        )
+    with col_clear:
+        if st.button("🗑️ Clear Output", key="btn_clear_current"):
+            st.session_state["current_output"] = None
+            st.rerun()
+
+    st.markdown("#### Predicted Chinese text")
+    st.info(current["chinese"])
+    st.caption(f"OpenCV extracted {current['frame_count']} frames.")
+
+    st.markdown("#### English translation")
+    st.success(current["english"])
+
+    st.markdown("#### English speech")
+    st.audio(current["speech_bytes"], format="audio/mpeg")
+    st.download_button(
+        label="Download English audio",
+        data=current["speech_bytes"],
+        file_name=f"english_speech_run_{current['id']}.mp3",
+        mime="audio/mpeg",
+        key=f"dl_btn_current_{current['id']}",
+    )
+    st.success("All pipeline stages completed.")
+
+
+# ==========================================
+# Session Output History & Log
+# ==========================================
+history = st.session_state.get("history_log", [])
+if history:
+    st.divider()
+    with st.expander(
+        f"📜 Session Output Log ({len(history)} run{'s' if len(history) > 1 else ''})",
+        expanded=False,
+    ):
+        col_log_info, col_log_clear = st.columns([4, 1])
+        with col_log_info:
+            st.write(
+                "All pipeline outputs generated while this server is running are stored here:"
+            )
+        with col_log_clear:
+            if st.button("Clear Log History", key="btn_clear_log"):
+                st.session_state["history_log"] = []
+                st.session_state["current_output"] = None
+                st.rerun()
+
+        for item in reversed(history):
+            st.markdown(
+                f"**Run #{item['id']}** ({item['timestamp']}) — Audio: `{item['audio_name']}` | Video: `{item['video_name']}`"
+            )
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**Chinese:**")
+                st.text_area(
+                    "Chinese",
+                    item["chinese"],
+                    height=70,
+                    key=f"log_cn_{item['id']}",
+                    label_visibility="collapsed",
+                )
+            with c2:
+                st.markdown("**English:**")
+                st.text_area(
+                    "English",
+                    item["english"],
+                    height=70,
+                    key=f"log_en_{item['id']}",
+                    label_visibility="collapsed",
+                )
+            col_aud, col_dl = st.columns([3, 1])
+            with col_aud:
+                st.audio(item["speech_bytes"], format="audio/mpeg")
+            with col_dl:
+                st.download_button(
+                    label=f"Download Run #{item['id']} MP3",
+                    data=item["speech_bytes"],
+                    file_name=f"english_speech_run_{item['id']}.mp3",
+                    mime="audio/mpeg",
+                    key=f"dl_btn_log_{item['id']}",
+                )
+            st.markdown("---")
