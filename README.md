@@ -21,8 +21,13 @@ Whispered speech can be difficult to recognize because it has different acoustic
 - Incorporate visual features through an audio-visual residual adapter.
 - Translate recognized Chinese text into English using NLLB-200.
 - Generate spoken English using Edge TTS.
-- Display transcription, translation, and generated audio in a Streamlit interface.
+- Display the predicted Chinese transcription, English translation, and generated speech in a Streamlit interface.
+- Play the generated English speech directly in the browser.
 - Download the generated English speech as an MP3 file.
+- Preserve the current pipeline output when Streamlit reruns after downloading the audio.
+- Clear the currently displayed pipeline output using the **Clear Output** button.
+- Maintain a session-only output history containing previous pipeline runs, their transcriptions, translations, audio players, and download buttons.
+- Clear the complete session output history using the **Clear Log History** button.
 
 ### Project Objectives
 
@@ -303,6 +308,13 @@ For a remote server, use the public or forwarded port URL provided by the hostin
 6. Review the English translation.
 7. Listen to the generated English speech.
 8. Download the resulting MP3 file if required.
+9. Use **Clear Output** to remove the currently displayed result.
+10. Expand **Session Output Log** to review previous pipeline runs from the current Streamlit session.
+11. Use the individual download buttons in the session log to download audio from previous runs.
+12. Use **Clear Log History** to remove all stored results from the current session.
+
+The current output and session history are stored in Streamlit session state. They remain available when the page reruns, including after clicking a download button, but they are cleared when the Streamlit server session ends or the history is manually cleared.
+
 
 ### Supported Input Formats
 
