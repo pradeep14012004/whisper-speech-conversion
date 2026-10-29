@@ -72,3 +72,10 @@ pretrained_models/
 *.key
 *.pem
 credentials.json
+
+# Local demo media and merge backups
+.DS_Store
+app.py.rebase-conflict-backup
+demo_samples/
+demo_samples_5pairs/
+hf_test_sample.wav
