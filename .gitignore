@@ -79,3 +79,36 @@ app.py.rebase-conflict-backup
 demo_samples/
 demo_samples_5pairs/
 hf_test_sample.wav
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local models and checkpoints
+outputs/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Audio and video datasets
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.m4a
+*.avi
+*.mp4
+*.mov
+*.mkv
+*.webm
+
+# System files
+.DS_Store
+*.log
