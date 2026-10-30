@@ -14,7 +14,12 @@ opencv-python-headless>=4.8,<4.12
 opencc-python-reimplemented
 pandas
 peft>=0.10,<1
+plotly
+psutil
+reportlab
+scikit-learn
 scipy
 soundfile
 streamlit
+streamlit-option-menu
 transformers>=4.40,<5
