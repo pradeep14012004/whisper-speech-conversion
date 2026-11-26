@@ -22,8 +22,6 @@ from pathlib import Path
 
 import cv2
 
-from opencc import OpenCC
-
 import edge_tts
 
 import librosa
@@ -138,14 +136,12 @@ from transformers import (
 
     WhisperForConditionalGeneration,
 
-    AutoTokenizer,
-
-    AutoModelForSeq2SeqLM,
-
 )
 
 from transformers.modeling_outputs import BaseModelOutput
 
+from modules.mandarin_translator import translate_mandarin_to_english
+from modules.qwen3_corrector import correct_mandarin_transcription_with_metadata
 
 
 # -----------------------------------------------------------------------------
@@ -508,6 +504,22 @@ def render_input_studio():
 
     render_media_preview(audio_upload, video_upload)
 
+    qwen3_default = str(os.getenv("QWEN3_CORRECTION_ENABLED", "false")).strip().lower() in {"1", "true", "yes", "on"}
+    qwen3_enabled = st.checkbox(
+        "Enable Qwen3 Mandarin correction",
+        value=qwen3_default,
+        key="qwen3_correction_enabled",
+        help="Use the local Ollama Qwen3:4B model to conservatively correct the fused Mandarin transcript before translation.",
+    )
+
+    translation_choice = st.selectbox(
+        "English translation model",
+        options=["NLLB-200 600M"],
+        index=0,
+        key="translation_model_choice",
+        help="NLLB-200 600M is the local translator for the final Mandarin transcript.",
+    )
+
     webcam_media = st.session_state.get("webcam_media")
     run_ready = ((audio_upload is not None and video_upload is not None) or use_sample_files or webcam_media is not None)
     if st.button("Run complete pipeline", type="primary", disabled=not run_ready):
@@ -577,29 +589,65 @@ def render_input_studio():
                     with model_frame_cols[i % 4]:
                         st.image(frame, caption=f"Model frame {i + 1}", clamp=True, use_container_width=True)
 
-                st.subheader("Local model predictions")
-                st.markdown("**Original LoRA + AV adapter**")
-                st.write(original_av_text or "No output from this model.")
-                st.markdown("**New 2k audio LoRA**")
-                st.write(new_2k_text or "No output from this model.")
-                st.markdown("**Experimental token-score fusion**")
-                st.write(fused_text or "No output from fusion.")
-                st.caption(f"Selected local fallback/path: {selected_path}")
                 if fusion_error:
                     st.warning(f"Token-score fusion had an issue: {fusion_error}")
 
-                selected_chinese = (local_selected or original_av_text or new_2k_text or fused_text or "").strip()
-                if not selected_chinese:
+                base_chinese = (local_selected or original_av_text or new_2k_text or fused_text or "").strip()
+                original_chinese = base_chinese
+                corrected_chinese = base_chinese
+                final_mandarin_text = base_chinese
+                qwen3_explanation = ""
+                qwen3_uncertain = False
+                qwen3_status = ""
+
+                if qwen3_enabled and base_chinese:
+                    with st.spinner("Applying conservative Qwen3 Mandarin correction..."):
+                        original_chinese, corrected_chinese, qwen3_explanation, qwen3_uncertain = correct_mandarin_transcription_with_metadata(
+                            fused_transcript=fused_text or base_chinese,
+                            audio_transcript=new_2k_text or None,
+                            av_transcript=original_av_text or None,
+                            large_v3_transcript=None,
+                            confidence=None,
+                        )
+
+                    if corrected_chinese != original_chinese:
+                        final_mandarin_text = corrected_chinese
+                        qwen3_status = "Qwen3 produced a valid correction and it was used as the final Mandarin transcript."
+                    else:
+                        final_mandarin_text = original_chinese
+                        qwen3_status = "Qwen3 returned no safe correction; the original fused transcript was retained."
+
+                    if qwen3_explanation:
+                        st.info(f"Qwen3 explanation: {qwen3_explanation}")
+                    if qwen3_uncertain:
+                        st.warning("Qwen3 marked the correction as uncertain. The accepted correction was still used because it remained valid and conservative.")
+                else:
+                    corrected_chinese = base_chinese
+                    final_mandarin_text = base_chinese
+                    qwen3_status = "Qwen3 correction is disabled; the original fused Mandarin transcript was used."
+
+                if not final_mandarin_text:
                     st.error("No usable Chinese transcript is available for translation.")
                     st.stop()
 
-                st.subheader("Chinese transcript used for translation")
-                st.write(selected_chinese)
+                translation_label = "NLLB-200 600M"
+                translation_desc = "NLLB-200 600M"
+
+                st.subheader("Final Mandarin transcript")
+                st.write(final_mandarin_text)
+                if qwen3_status:
+                    st.caption(qwen3_status)
+                st.caption(f"Translation model: {translation_desc}")
+                print(f"[translation] final_mandarin_text before selected translator: {final_mandarin_text!r} | model={translation_label}")
                 translation_start = time.perf_counter()
-                with st.spinner("Step 2/3: Translating the selected Chinese transcript into English..."):
-                    english = translate_english(selected_chinese)
+                with st.spinner(f"Step 2/3: Translating the selected Chinese transcript with {translation_label}..."):
+                    try:
+                        english = translate_mandarin_to_english(final_mandarin_text)
+                    except Exception as exc:
+                        st.error(f"{translation_label} translation failed: {type(exc).__name__}: {exc}. The final Mandarin transcript was preserved.")
+                        st.stop()
                 stage_timing["translation"] = time.perf_counter() - translation_start
-                st.markdown("## English translation")
+                st.subheader("English translation")
                 st.success(english)
 
                 speech_start = time.perf_counter()
@@ -627,7 +675,7 @@ def render_input_studio():
                     "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "audio_name": Path(audio_path.name).name,
                     "video_name": Path(video_path.name).name,
-                    "chinese": selected_chinese,
+                    "chinese": final_mandarin_text,
                     "english": english,
                     "speech_bytes": speech,
                     "frame_count": len(video_frames),
@@ -1284,24 +1332,6 @@ def load_new_audio_model():
     return processor, whisper.to(DEVICE).eval()
 
 
-
-
-
-@st.cache_resource(show_spinner="Loading Chinese-to-English translation model...")
-
-def load_translation_model():
-
-    model_name = "Helsinki-NLP/opus-mt-zh-en"
-
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-    model = AutoModelForSeq2SeqLM.from_pretrained(
-
-        model_name, use_safetensors=False
-
-    ).to(DEVICE).eval()
-
-    return tokenizer, model
 
 
 
@@ -2248,56 +2278,7 @@ def recognize_chinese(audio_path, video_path):
 
 # -----------------------------------------------------------------------------
 
-def translate_english(chinese_text):
-
-    tokenizer, model = load_translation_model()
-
-    normalized_text = OpenCC("t2s").convert(chinese_text)
-
-    inputs = tokenizer(
-
-        normalized_text,
-
-        return_tensors="pt",
-
-        truncation=True,
-
-        max_length=512,
-
-    ).to(DEVICE)
-
-
-
-    with torch.inference_mode():
-
-        output = model.generate(
-
-            **inputs,
-
-            max_new_tokens=256,
-
-            num_beams=4,
-
-        )
-
-    translation = tokenizer.batch_decode(
-
-        output, skip_special_tokens=True
-
-    )[0].strip()
-
-    if not translation:
-
-        raise ValueError("OPUS returned an empty translation.")
-
-    return translation
-
-
-
-
-
 async def generate_speech(text, output_path):
-
     communicator = edge_tts.Communicate(
 
         text, voice="en-US-AriaNeural"
@@ -2435,6 +2416,14 @@ with st.expander("Or choose individual audio and video files"):
 
 render_media_preview(audio_upload, video_upload)
 
+qwen3_default = str(os.getenv("QWEN3_CORRECTION_ENABLED", "false")).strip().lower() in {"1", "true", "yes", "on"}
+qwen3_enabled = st.checkbox(
+    "Enable Qwen3 Mandarin correction",
+    value=qwen3_default,
+    key="qwen3_correction_enabled_legacy",
+    help="Use the local Ollama Qwen3:4B model to conservatively correct the fused Mandarin transcript before translation.",
+)
+
 webcam_media = st.session_state.get("webcam_media")
 run_ready = ((audio_upload is not None and video_upload is not None) or use_sample_files or webcam_media is not None)
 if st.button("Run complete pipeline", type="primary", disabled=not run_ready):
@@ -2486,27 +2475,56 @@ if st.button("Run complete pipeline", type="primary", disabled=not run_ready):
                         use_container_width=True,
                     )
 
-            st.subheader("Local model predictions")
-            st.markdown("**Original LoRA + AV adapter**")
-            st.write(original_av_text or "No output from this model.")
-            st.markdown("**New 2k audio LoRA**")
-            st.write(new_2k_text or "No output from this model.")
-            st.markdown("**Experimental token-score fusion**")
-            st.write(fused_text or "No output from fusion.")
-            st.caption(f"Selected local fallback/path: {selected_path}")
-            if fusion_error:
-                st.warning(f"Token-score fusion had an issue: {fusion_error}")
+            base_chinese = (local_selected or original_av_text or new_2k_text or fused_text or "").strip()
+            original_chinese = base_chinese
+            corrected_chinese = base_chinese
+            final_mandarin_text = base_chinese
+            qwen3_explanation = ""
+            qwen3_uncertain = False
+            qwen3_status = ""
 
-            selected_chinese = (local_selected or original_av_text or new_2k_text or fused_text or "").strip()
-            if not selected_chinese:
+            if qwen3_enabled and base_chinese:
+                with st.spinner("Applying conservative Qwen3 Mandarin correction..."):
+                    original_chinese, corrected_chinese, qwen3_explanation, qwen3_uncertain = correct_mandarin_transcription_with_metadata(
+                        fused_transcript=fused_text or base_chinese,
+                        audio_transcript=new_2k_text or None,
+                        av_transcript=original_av_text or None,
+                        large_v3_transcript=None,
+                        confidence=None,
+                    )
+
+                if corrected_chinese != original_chinese:
+                    final_mandarin_text = corrected_chinese
+                    qwen3_status = "Qwen3 produced a valid correction and it was used as the final Mandarin transcript."
+                else:
+                    final_mandarin_text = original_chinese
+                    qwen3_status = "Qwen3 returned no safe correction; the original fused transcript was retained."
+
+                if qwen3_explanation:
+                    st.info(f"Qwen3 explanation: {qwen3_explanation}")
+                if qwen3_uncertain:
+                    st.warning("Qwen3 marked the correction as uncertain. The accepted correction was still used because it remained valid and conservative.")
+            else:
+                corrected_chinese = base_chinese
+                final_mandarin_text = base_chinese
+                qwen3_status = "Qwen3 correction is disabled; the original fused Mandarin transcript was used."
+
+            if not final_mandarin_text:
                 st.error("No usable Chinese transcript is available for translation.")
                 st.stop()
 
-            st.subheader("Chinese transcript used for translation")
-            st.write(selected_chinese)
+            st.subheader("Final Mandarin transcript")
+            st.write(final_mandarin_text)
+            if qwen3_status:
+                st.caption(qwen3_status)
+            print(f"[translation] final_mandarin_text before NLLB: {final_mandarin_text!r}")
             with st.spinner("Step 2/3: Translating the selected Chinese transcript into English..."):
-                english = translate_english(selected_chinese)
-            st.markdown("## English translation")
+                try:
+                    english = translate_mandarin_to_english(final_mandarin_text)
+                except Exception as exc:
+                    st.error(f"Mandarin translation failed: {type(exc).__name__}: {exc}")
+                    raise
+            st.subheader("English translation")
             st.success(english)
 
             speech_path = temp_dir / "english_speech.mp3"

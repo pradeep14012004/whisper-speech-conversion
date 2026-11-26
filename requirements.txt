@@ -10,6 +10,7 @@ editdistance
 jiwer
 librosa>=0.10
 numpy<2
+ollama
 opencv-python-headless>=4.8,<4.12
 opencc-python-reimplemented
 pandas
@@ -19,6 +20,7 @@ psutil
 reportlab
 scikit-learn
 scipy
+sentencepiece
 soundfile
 streamlit
 streamlit-option-menu

@@ -53,7 +53,7 @@ flowchart TD
     K --> N
     M --> N
     N --> O["Chinese transcript"]
-    O --> P["Helsinki-NLP/opus-mt-zh-en"]
+    O --> P["facebook/nllb-200-distilled-600M"]
     P --> Q["English translation"]
     Q --> R["Edge TTS"]
     R --> S["English speech"]
@@ -76,9 +76,29 @@ The app also generates independent transcripts from the original AV path and new
 - If fewer than 16 frames are decoded, the last valid frame is repeated.
 - The current adapter uses whole-frame grayscale inputs; it does not perform a dedicated mouth-region crop or explicit lip-landmark extraction.
 
+### Qwen3 as the primary local translator
+
+The app uses the local Ollama `qwen3:4b` model as the default English translation backend for the final Mandarin transcript. An optional local NLLB translation path remains available for comparison and fallback use.
+
+Behavior:
+
+- uses the local Ollama server (`http://127.0.0.1:11434` by default),
+- runs only when the selected translation backend is `Qwen3 4B (Recommended)`,
+- keeps the original fused transcript unless Qwen3 correction is accepted and enabled,
+- translates only the final selected Mandarin transcript, never intermediate Whisper or AV outputs,
+- falls back safely to the original fused transcript if Ollama is unavailable or the model returns invalid output.
+
+### Optional NLLB translation backend
+
+Meta's `facebook/nllb-200-distilled-600M` remains available as an alternative backend for Chinese-to-English translation. It uses the source language code `zho_Hans` and the target language code `eng_Latn`, with the model and tokenizer loaded lazily and cached locally.
+
+The app does not trigger both translation backends automatically; the selected translation model is the only one that executes for a given run.
+
 ### Translation and speech generation
 
-The selected Chinese transcript is passed to `Helsinki-NLP/opus-mt-zh-en` for English translation. The English text is then synthesized with Edge TTS using the voice `en-US-AriaNeural`.
+The final selected Mandarin transcript is passed to the selected English translation backend. The English text is then synthesized with Edge TTS using the voice `en-US-AriaNeural`.
+
+The Qwen3 translation path runs locally through Ollama without requiring paid APIs. The NLLB path remains local and CPU/MPS-compatible, and it is only used when the user selects it in the Streamlit translation picker.
 
 Translation and TTS operate on text; they do not modify the Whisper models or improve the acoustic transcription weights.
 
@@ -93,7 +113,7 @@ Translation and TTS operate on text; they do not modify the Whisper models or im
 | AV adapter | `outputs/av_transcription_full.pt` | CNN visual encoder, cross-attention, gated residual fusion |
 | New audio-only adapter | `outputs/whisper_lora_aishell6_2k/` | Second Whisper-small LoRA prediction path |
 | Local fusion | Weighted next-token log probabilities | Experimental combination of AV and audio-only paths |
-| Translation | `Helsinki-NLP/opus-mt-zh-en` | Chinese-to-English text translation |
+| Translation | `facebook/nllb-200-distilled-600M` | Chinese-to-English text translation |
 | Speech generation | Edge TTS, `en-US-AriaNeural` | English text-to-speech |
 | Deep learning | PyTorch, Transformers, PEFT | Model loading and inference |
 | Video | OpenCV | Video decoding and frame preprocessing |
@@ -207,7 +227,7 @@ Open the local URL printed by Streamlit, usually:
 http://localhost:8501
 ~~~
 
-The first run may download the base Whisper-small and OPUS translation models. Ensure there is sufficient disk space and network access for these downloads.
+The first run may download the base Whisper-small and NLLB translation model. Ensure there is sufficient disk space and network access for these downloads.
 
 ---
 
@@ -383,7 +403,7 @@ Other root-level scripts are retained as experiment entry points or compatibilit
 - Different models can disagree. A nonempty output is not necessarily a correct transcript; review predictions against the source audio.
 - Translation and English TTS quality have not been quantitatively evaluated in the committed results.
 - Edge TTS requires network access.
-- The base Whisper-small and OPUS translation models may need to be downloaded on first use.
+- The base Whisper-small and NLLB translation model may need to be downloaded on first use.
 - Full datasets, manifests and intermediate video features are not all included. Obtain data separately and follow dataset licenses.
 - The app's English speech is synthesized from translated text; it is not voice conversion and does not preserve the original speaker's identity or voice.
 
@@ -399,6 +419,6 @@ If you have a separate local Option A/Groq-enabled version, commit and push that
 
 ## Acknowledgements and model usage
 
-This project uses OpenAI Whisper, Hugging Face Transformers and PEFT, PyTorch, OpenCV, Librosa, SoundFile, Streamlit, Helsinki-NLP OPUS-MT and Edge TTS.
+This project uses OpenAI Whisper, Hugging Face Transformers and PEFT, PyTorch, OpenCV, Librosa, SoundFile, Streamlit, Meta NLLB-200 and Edge TTS.
 
 Review each model's license, usage terms and the training dataset's license before redistributing weights or data.
